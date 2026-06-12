@@ -169,12 +169,6 @@ def extract_items(text):
             if not name and i > 0:
                 name = lines[i - 1].strip()
     
-    for i in range(date_index + 1, len(lines)):
-        line = lines[i]
-        
-        # เงื่อนไขหยุดเมื่อเจอคำว่า Total หรือ ยอดรวม
-        if any(k in line for k in ["Total", "ยอดรวม", "Vatable"]):
-            break
             if len(name) >= 2 and not any(k in name for k in skip_keywords):
                 price = parse_price(p_match.group(1))
                 items.append({
