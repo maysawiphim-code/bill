@@ -188,7 +188,7 @@ if uploaded_files:
                     summary_data.append({
                         "ชื่อไฟล์": r['filename'],
                         "วันที่": r['bill_data']['date'],
-                        "ชื่อสาขา": r['site'],
+                        "สาขาที่": r['site'],
                         "ชื่อสินค้า": r['name'],
                         "ยอดรวมสุทธิ": r['bill_data']['total_amount'],
                         "เงินสด": r['bill_data']['cash'],
