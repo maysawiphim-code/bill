@@ -54,9 +54,6 @@ def clean_ocr_text(text):
         "มาท": "บาท",
         "แท": "บาท",
         "แดม": "แสตมป์",
-        "อเพริคาโนเย็น":"อเมริกาโน่เย็น",
-        "คาปุซิโนเย็น":"คาปูชิโน่เย็น",
-        "นําทินย่นําติม":"น้ำทิพย์น้ำดื่ม",
     }
     for old, new in fuzzy_replacements.items():
         text = text.replace(old, new)
@@ -183,22 +180,119 @@ def extract_items(text):
     return items
 
 
+def split_receipts_image(img_cv):
+    """
+    แยกภาพที่มีหลายใบเสร็จวางเรียงกัน (เช่น แนวนอน บนพื้นหลังสีต่างกัน)
+    ออกเป็นภาพย่อยแต่ละใบ โดยเรียงจากซ้ายไปขวา
+    ถ้าตรวจไม่พบหลายใบ จะคืนภาพเดิมเป็น list 1 ภาพ
+    """
+    h, w = img_cv.shape[:2]
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # ให้พื้นที่ใบเสร็จ (สว่างกว่า) เป็นค่า 255 (foreground)
+    if np.mean(gray[thresh == 255]) < np.mean(gray[thresh == 0]):
+        thresh = cv2.bitwise_not(thresh)
+
+    # ปิดช่องว่างเล็กๆ ภายในใบเสร็จเดียวกัน
+    kernel = np.ones((25, 25), np.uint8)
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    img_area = h * w
+    boxes = []
+    for c in contours:
+        x, y, bw, bh = cv2.boundingRect(c)
+        area = bw * bh
+        # ต้องมีขนาดใหญ่พอ และสูงพอที่จะเป็นใบเสร็จ ไม่ใช่จุดรบกวน
+        if area < img_area * 0.03:
+            continue
+        if bh < h * 0.2:
+            continue
+        boxes.append((x, y, bw, bh))
+
+    if len(boxes) < 2:
+        return [img_cv]
+
+    boxes.sort(key=lambda b: b[0])  # เรียงจากซ้ายไปขวา
+
+    pad = 5
+    crops = []
+    for x, y, bw, bh in boxes:
+        x0 = max(x - pad, 0)
+        y0 = max(y - pad, 0)
+        x1 = min(x + bw + pad, w)
+        y1 = min(y + bh + pad, h)
+        crops.append(img_cv[y0:y1, x0:x1])
+
+    return crops
+
+
+def split_text_into_receipts(text):
+    """
+    แยกข้อความ OCR ที่มาจากหลายใบเสร็จซ้อน/ติดกันในภาพเดียว
+    โดยใช้จุดสังเกตคือบรรทัด ID: ของแต่ละใบเสร็จ (เช่น ID:E067000002A1582)
+    ถ้าพบจุดแยกน้อยกว่า 2 จุด จะคืนข้อความเดิมเป็น list 1 ชุด
+    """
+    lines = text.split('\n')
+    marker_pattern = re.compile(r'ID\s*[:.;]?\s*[A-Za-z]?\d{6,}', re.IGNORECASE)
+    marker_indices = [i for i, line in enumerate(lines) if marker_pattern.search(line)]
+
+    if len(marker_indices) < 2:
+        return [text]
+
+    # ข้อความส่วนหัว (ก่อนใบเสร็จแรก) เช่น ชื่อสาขา - แนบไปทุกใบเสร็จ
+    header = '\n'.join(lines[:marker_indices[0]]).strip()
+
+    chunks = []
+    for idx, start in enumerate(marker_indices):
+        end = marker_indices[idx + 1] if idx + 1 < len(marker_indices) else len(lines)
+        chunk_lines = lines[start:end]
+        chunk_text = '\n'.join(chunk_lines).strip()
+        if header:
+            chunk_text = header + '\n' + chunk_text
+        chunks.append(chunk_text)
+
+    return chunks
+
+
 def process_image(uploaded_file):
+    """
+    ประมวลผลไฟล์ภาพ 1 ไฟล์ ซึ่งอาจมีใบเสร็จมากกว่า 1 ใบอยู่ในภาพเดียว
+    คืนค่าเป็น list ของผลลัพธ์ (1 รายการ = 1 ใบเสร็จ)
+    """
     img_pil = Image.open(uploaded_file)
     img_cv = cv2.cvtColor(np.array(img_pil.convert("RGB")), cv2.COLOR_RGB2BGR)
 
-    processed = preprocess_image(img_cv)
+    # ขั้นที่ 1: แยกใบเสร็จที่วางเรียงกันในภาพ (ตามตำแหน่งภาพ)
+    crops = split_receipts_image(img_cv)
 
-    # ใช้ pytesseract เพียงอย่างเดียว (รองรับภาษาไทย + อังกฤษ)
-    text = pytesseract.image_to_string(processed, lang='tha+eng', config='--psm 6')
+    results = []
+    receipt_counter = 0
 
-    cleaned_text = clean_ocr_text(text)
-    return {
-        "filename": uploaded_file.name,
-        "bill_data": extract_bill_data(cleaned_text),
-        "receipt_items": extract_items(cleaned_text),
-        "raw_text": cleaned_text
-    }
+    for crop in crops:
+        processed = preprocess_image(crop)
+        text = pytesseract.image_to_string(processed, lang='tha+eng', config='--psm 6')
+        cleaned_text = clean_ocr_text(text)
+
+        # ขั้นที่ 2: แยกใบเสร็จที่ซ้อน/ติดกันในภาพย่อยเดียว (ตามข้อความ ID:)
+        sub_texts = split_text_into_receipts(cleaned_text)
+
+        for sub_text in sub_texts:
+            receipt_counter += 1
+            multi = (len(crops) > 1) or (len(sub_texts) > 1) or (receipt_counter > 1)
+            filename = f"{uploaded_file.name} - บิล {receipt_counter}" if multi else uploaded_file.name
+
+            results.append({
+                "filename": filename,
+                "bill_data": extract_bill_data(sub_text),
+                "receipt_items": extract_items(sub_text),
+                "raw_text": sub_text
+            })
+
+    return results
 
 
 # UI
@@ -212,10 +306,12 @@ if uploaded_files:
         all_results = []
         with st.spinner("กำลังวิเคราะห์..."):
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                all_results = list(executor.map(process_image, uploaded_files))
+                nested_results = list(executor.map(process_image, uploaded_files))
+        # แต่ละไฟล์อาจมีหลายใบเสร็จ -> รวมเป็น list เดียว
+        all_results = [item for sub in nested_results for item in sub]
 
         if all_results:
-            st.success(f"ประมวลผลเสร็จสิ้น! พบ {len(all_results)} ใบเสร็จ")
+            st.success(f"ประมวลผลเสร็จสิ้น! พบ {len(all_results)} ใบเสร็จ จาก {len(uploaded_files)} ไฟล์")
             for res in all_results:
                 with st.expander(f"📄 {res['filename']}", expanded=True):
                     d = res['bill_data']
