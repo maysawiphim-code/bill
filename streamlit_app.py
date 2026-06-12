@@ -27,6 +27,7 @@ def clean_ocr_text(text):
     
     # Fuzzy mapping for CJ Express and other common OCR errors
     fuzzy_replacements = {
+        "สาขาที่": "สาขาที่",
         "มอดราม": "ยอดรวม",
         "เง็นสด": "เงินสด",
         "เป็นทอน": "เงินทอน",
@@ -166,11 +167,13 @@ if uploaded_files:
             for res in all_results:
                 with st.expander(f"📄 {res['filename']}", expanded=True):
                     d = res['bill_data']
-                    c1, c2, c3, c4 = st.columns(4)
+                    c1, c2, c3, c4 ,c5 ,c6 = st.columns(6)
                     c1.metric("วันที่", d['date'])
-                    c2.metric("ยอดรวม", f"{d['total_amount']} บาท")
-                    c3.metric("เงินสด", f"{d['cash']} บาท")
-                    c4.metric("เงินทอน", f"{d['change']} บาท")
+                    c2.metric("สาขา", d['site'])
+                    c3.metric("ชื่อสินค้า", d['name'])
+                    c4.metric("ยอดรวม", f"{d['total_amount']} บาท")
+                    c5.metric("เงินสด", f"{d['cash']} บาท")
+                    c6.metric("เงินทอน", f"{d['change']} บาท")
                     
                     if res['receipt_items']:
                         st.table(pd.DataFrame(res['receipt_items']))
@@ -185,6 +188,8 @@ if uploaded_files:
                     summary_data.append({
                         "ชื่อไฟล์": r['filename'],
                         "วันที่": r['bill_data']['date'],
+                        "ชื่อสาขา": r['site'],
+                        "ชื่อสินค้า": r['name'],
                         "ยอดรวมสุทธิ": r['bill_data']['total_amount'],
                         "เงินสด": r['bill_data']['cash'],
                         "เงินทอน": r['bill_data']['change']
