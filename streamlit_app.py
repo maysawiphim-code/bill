@@ -169,7 +169,7 @@ if uploaded_files:
                     d = res['bill_data']
                     c1, c2, c3, c4 ,c5 ,c6 = st.columns(6)
                     c1.metric("วันที่", d['date'])
-                    c2.metric("สาขา", d['site'])
+                    c2.metric("สาขา", d['Branch'])
                     c3.metric("ชื่อสินค้า", d['name'])
                     c4.metric("ยอดรวม", f"{d['total_amount']} บาท")
                     c5.metric("เงินสด", f"{d['cash']} บาท")
@@ -188,7 +188,7 @@ if uploaded_files:
                     summary_data.append({
                         "ชื่อไฟล์": r['filename'],
                         "วันที่": r['bill_data']['date'],
-                        "สาขา": r['bill_data']['site'],   # แก้จาก r['site']
+                        "สาขา": r['bill_data']['Branch'],   # แก้จาก r['Branch']
                         "ชื่อสินค้า": r['bill_data']['name'], # แก้จาก r['name'
                         "ยอดรวมสุทธิ": r['bill_data']['total_amount'],
                         "เงินสด": r['bill_data']['cash'],
