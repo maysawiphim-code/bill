@@ -68,7 +68,7 @@ def extract_bill_data(text):
     change = 0.0
     branch = "ไม่พบ"
     
-     lines = text.split('\n')
+    lines = text.split('\n')
     # ใช้บรรทัดแรกที่ไม่ว่างเป็นชื่อร้าน/ชื่อสินค้าหลัก
     name = lines[0].strip() if lines and lines[0].strip() else "ไม่พบ"
     
