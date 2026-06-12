@@ -1,0 +1,10 @@
+streamlit
+easyocr
+pytesseract
+pandas
+pillow
+opencv-python-headless
+openpyxl
+torch
+torchvision
+openai
