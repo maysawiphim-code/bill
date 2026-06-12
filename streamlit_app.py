@@ -28,6 +28,7 @@ def clean_ocr_text(text):
     # Fuzzy mapping for CJ Express and other common OCR errors
     fuzzy_replacements = {
         "สาขา": "สาขา",
+        "สาราทิ": "สาขา",
         "มอดราม": "ยอดรวม",
         "เง็นสด": "เงินสด",
         "เป็นทอน": "เงินทอน",
