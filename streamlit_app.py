@@ -169,7 +169,7 @@ if uploaded_files:
                     d = res['bill_data']
                     c1, c2, c3, c4 ,c5 ,c6 = st.columns(6)
                     c1.metric("วันที่", d['date'])
-                    c2.metric("สาขา", d['site'])
+                    c2.metric("สาขาที่", d['site'])
                     c3.metric("ชื่อสินค้า", d['name'])
                     c4.metric("ยอดรวม", f"{d['total_amount']} บาท")
                     c5.metric("เงินสด", f"{d['cash']} บาท")
