@@ -27,7 +27,7 @@ def clean_ocr_text(text):
     
     # Fuzzy mapping for CJ Express and other common OCR errors
     fuzzy_replacements = {
-        "สาขาที่": "สาขาที่",
+        "สาขา": "สาขา",
         "มอดราม": "ยอดรวม",
         "เง็นสด": "เงินสด",
         "เป็นทอน": "เงินทอน",
@@ -66,9 +66,23 @@ def extract_bill_data(text):
     total_amount = 0.0
     cash = 0.0
     change = 0.0
+    branch = "ไม่พบ"
     
-    lines = text.split('\n')
+     lines = text.split('\n')
+    # ใช้บรรทัดแรกที่ไม่ว่างเป็นชื่อร้าน/ชื่อสินค้าหลัก
+    name = lines[0].strip() if lines and lines[0].strip() else "ไม่พบ"
+    
     for i, line in enumerate(lines):
+        # Branch / สาขา
+        if any(k in line for k in site_keywords):
+            branch_line = line.strip()
+            for k in site_keywords:
+                if k in branch_line:
+                    branch_line = branch_line.split(k, 1)[-1].strip(": -")
+                    break
+            if branch_line:
+                branch = branch_line
+
         # Total
         if any(k in line for k in total_keywords):
             match = re.search(r'(\d+[\.,]\d{2})', line)
@@ -98,6 +112,8 @@ def extract_bill_data(text):
         "total_amount": total_amount,
         "change": change,
         "cash": cash,
+        "Branch": branch,
+        "name": name,
     }
 
 def extract_items(text):
