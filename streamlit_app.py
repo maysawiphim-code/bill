@@ -234,7 +234,9 @@ if uploaded_files:
             # Excel Export
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                # Sheet 1: Summary
+                sheet_name = 'สรุปยอด'
+
+                # ตารางที่ 1: Summary
                 summary_data = []
                 for r in all_results:
                     summary_data.append({
@@ -246,9 +248,10 @@ if uploaded_files:
                         "เงินสด": r['bill_data']['cash'],
                         "เงินทอน": r['bill_data']['change']
                     })
-                pd.DataFrame(summary_data).to_excel(writer, index=False, sheet_name='สรุปยอด')
+                df_summary = pd.DataFrame(summary_data)
+                df_summary.to_excel(writer, index=False, sheet_name=sheet_name, startrow=0)
 
-                # Sheet 2: Item Details
+                # ตารางที่ 2: รายการสินค้า (อยู่ชีทเดียวกัน เว้น 2 แถว)
                 items_data = []
                 for r in all_results:
                     for it in r['receipt_items']:
@@ -257,8 +260,13 @@ if uploaded_files:
                             "วันที่": r['bill_data']['date'],
                             **it
                         })
+
                 if items_data:
-                    pd.DataFrame(items_data).to_excel(writer, index=False, sheet_name='รายละเอียดสินค้า')
+                    df_items = pd.DataFrame(items_data)
+                    start_row_items = len(df_summary) + 3  # เว้นบรรทัดว่าง 2 บรรทัด
+                    worksheet = writer.sheets[sheet_name]
+                    worksheet.cell(row=start_row_items, column=1, value="รายละเอียดสินค้า")
+                    df_items.to_excel(writer, index=False, sheet_name=sheet_name, startrow=start_row_items)
 
             st.download_button(
                 label="📥 ดาวน์โหลด Excel (แยกรายการสินค้า)",
