@@ -19,6 +19,19 @@ def load_reader():
 
 reader = load_reader()
 
+def preprocess_image(img_cv):
+    # แปลง grayscale
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+
+    # ขยายภาพ (ช่วยมากถ้าภาพความละเอียดต่ำ)
+    scale = 2
+    gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+
+    # ลด noise
+    gray = cv2.fastNlMeansDenoising(gray, h=10)
+
+    return gray
+
 def clean_ocr_text(text):
     if not text: return ""
     lines = text.split('\n')
@@ -38,7 +51,14 @@ def clean_ocr_text(text):
         "เเงินสด": "เงินสด",
         "จํานวน": "จำนวน",
         "รวมสุทธิ": "ยอดรวม",
-        "Net Total": "ยอดรวม"
+        "Net Total": "ยอดรวม",
+        "ขีเจ": "CJ",
+        "มอร์": "MORE",
+        "เม็นสด": "เงินสด",
+        "เง็นทอน": "เงินทอน",
+        "มาท": "บาท",
+        "แท": "บาท",
+        "แดม": "แสตมป์",
     }
     for old, new in fuzzy_replacements.items():
         text = text.replace(old, new)
@@ -154,10 +174,19 @@ def extract_items(text):
 def process_image(uploaded_file):
     img_pil = Image.open(uploaded_file)
     img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-    ocr_results = reader.readtext(img_cv, detail=0)
+
+    processed = preprocess_image(img_cv)
+
+    ocr_results = reader.readtext(
+        processed,
+        detail=0,
+        contrast_ths=0.3,
+        adjust_contrast=0.7,
+        text_threshold=0.6
+    )
     text = '\n'.join(ocr_results)
     if len(text.strip()) < 30:
-        text = pytesseract.image_to_string(img_pil, lang='tha+eng', config='--psm 6')
+        text = pytesseract.image_to_string(processed, lang='tha+eng', config='--psm 6')
     cleaned_text = clean_ocr_text(text)
     return {
         "filename": uploaded_file.name,
@@ -205,8 +234,8 @@ if uploaded_files:
                     summary_data.append({
                         "ชื่อไฟล์": r['filename'],
                         "วันที่": r['bill_data']['date'],
-                        "สาขา": r['bill_data']['Branch'],   # แก้จาก r['Branch']
-                        "ชื่อสินค้า": r['bill_data']['name'], # แก้จาก r['name'
+                        "สาขา": r['bill_data']['Branch'],
+                        "ชื่อสินค้า": r['bill_data']['name'],
                         "ยอดรวมสุทธิ": r['bill_data']['total_amount'],
                         "เงินสด": r['bill_data']['cash'],
                         "เงินทอน": r['bill_data']['change']
